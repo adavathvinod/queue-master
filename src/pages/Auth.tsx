@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Ticket, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { ArrowRight, Mail, Lock } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { WimiraLogo } from "@/components/WimiraLogo";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -81,14 +83,15 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 animate-fade-in">
-          <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center mb-4 glow-primary">
-            <Ticket className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">QueueFlow</h1>
-          <p className="text-muted-foreground mt-2">Universal Queue Management</p>
+          <WimiraLogo size="lg" />
         </div>
 
         {/* Auth Card */}

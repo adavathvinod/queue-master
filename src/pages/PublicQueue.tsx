@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueueByCode } from "@/hooks/useQueue";
+import { useNextInLineAlert } from "@/hooks/useVibration";
 import { supabase } from "@/integrations/supabase/client";
 import OdometerDisplay from "@/components/OdometerDisplay";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { WimiraLogo } from "@/components/WimiraLogo";
 import { toast } from "sonner";
-import { ArrowLeft, Ticket, Clock, Users, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Ticket, Clock, Users, AlertCircle, CheckCircle2, XCircle, Bell } from "lucide-react";
 
 const PublicQueue = () => {
   const { queueCode } = useParams<{ queueCode: string }>();
@@ -15,6 +18,13 @@ const PublicQueue = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
   const navigate = useNavigate();
+
+  // Vibration alert for next in line
+  useNextInLineAlert(
+    myToken,
+    queue?.current_serving || 0,
+    tokenStatus === "active"
+  );
 
   // Check for existing token in this session
   useEffect(() => {
@@ -109,6 +119,7 @@ const PublicQueue = () => {
   }
 
   const peopleAhead = myToken ? Math.max(0, myToken - queue.current_serving - 1) : 0;
+  const isNextInLine = myToken !== null && myToken === queue.current_serving + 1;
   const estimatedWaitMinutes = queue.ewt_enabled && queue.average_service_time_seconds
     ? Math.round((peopleAhead * queue.average_service_time_seconds) / 60)
     : null;
@@ -123,16 +134,23 @@ const PublicQueue = () => {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <header className="flex items-center gap-4 mb-8 animate-fade-in">
           <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{queue.business_name}</h1>
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground mb-1">Welcome to</p>
+            <h1 className="text-xl font-bold text-foreground">{queue.business_name}'s Queue</h1>
             <p className="text-sm font-mono text-primary">{queue.queue_code}</p>
           </div>
+          <WimiraLogo size="sm" showText={false} />
         </header>
 
         {/* Queue Status */}
@@ -162,11 +180,13 @@ const PublicQueue = () => {
             className={`card-gradient rounded-2xl border-2 p-6 mb-6 animate-fade-in ${
               isMyTurn 
                 ? "border-success bg-success/5 animate-pulse-glow" 
-                : isMissedOrExpired
-                  ? "border-destructive bg-destructive/5"
-                  : isServed
-                    ? "border-muted bg-muted/5"
-                    : "border-primary/50"
+                : isNextInLine
+                  ? "border-accent bg-accent/5"
+                  : isMissedOrExpired
+                    ? "border-destructive bg-destructive/5"
+                    : isServed
+                      ? "border-muted bg-muted/5"
+                      : "border-primary/50"
             }`}
             style={{ animationDelay: "0.2s" }}
           >
@@ -175,6 +195,13 @@ const PublicQueue = () => {
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <CheckCircle2 className="w-6 h-6 text-success" />
                   <span className="text-lg font-bold text-success">IT'S YOUR TURN!</span>
+                </div>
+              )}
+
+              {isNextInLine && !isMyTurn && (
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Bell className="w-6 h-6 text-accent animate-bounce" />
+                  <span className="text-lg font-bold text-accent">YOU'RE NEXT!</span>
                 </div>
               )}
               
@@ -262,6 +289,13 @@ const PublicQueue = () => {
             )}
           </div>
         )}
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-xs text-muted-foreground">
+            Powered by <span className="text-primary font-medium">Wimira</span>
+          </p>
+        </div>
       </div>
     </div>
   );
