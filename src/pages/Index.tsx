@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Ticket, ArrowRight, Users, Settings, QrCode, Zap } from "lucide-react";
+import { ArrowRight, Users, Settings, QrCode, Zap } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { WimiraLogo } from "@/components/WimiraLogo";
+import { QRScanner } from "@/components/QRScanner";
 
 const Index = () => {
   const [queueCode, setQueueCode] = useState("");
@@ -15,22 +18,25 @@ const Index = () => {
     }
   };
 
+  const handleQRScan = (code: string) => {
+    navigate(`/queue/${code}`);
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       {/* Hero Section */}
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           {/* Logo & Title */}
           <div className="text-center mb-12 animate-fade-in">
-            <div className="w-20 h-20 rounded-3xl bg-primary/20 flex items-center justify-center mx-auto mb-6 glow-primary">
-              <Ticket className="w-10 h-10 text-primary" />
+            <div className="flex justify-center mb-6">
+              <WimiraLogo size="xl" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3">
-              Queue<span className="text-primary">Flow</span>
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Universal Virtual Queue Management
-            </p>
           </div>
 
           {/* Join Queue Form */}
@@ -39,10 +45,24 @@ const Index = () => {
               Join a Queue
             </h2>
             
+            {/* QR Scanner */}
+            <div className="mb-4">
+              <QRScanner onScan={handleQRScan} />
+            </div>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or enter manually</span>
+              </div>
+            </div>
+            
             <form onSubmit={handleJoinQueue} className="space-y-4">
               <div>
                 <Input
-                  placeholder="Enter queue code (e.g., CAFE-1)"
+                  placeholder="Enter business code (e.g., CAFE-1)"
                   value={queueCode}
                   onChange={(e) => setQueueCode(e.target.value.toUpperCase())}
                   className="text-center text-lg font-mono h-14"
@@ -82,7 +102,7 @@ const Index = () => {
       <section className="py-16 px-4 border-t border-border/50">
         <div className="max-w-4xl mx-auto">
           <h3 className="text-2xl font-bold text-foreground text-center mb-12 animate-fade-in">
-            Why QueueFlow?
+            Why Wimira?
           </h3>
           <div className="grid md:grid-cols-3 gap-6">
             <FeatureCard
@@ -110,7 +130,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-6 px-4 border-t border-border/50 text-center">
         <p className="text-sm text-muted-foreground">
-          © 2024 QueueFlow. Universal Queue Management System.
+          © 2024 Wimira Token Management System
         </p>
       </footer>
     </div>

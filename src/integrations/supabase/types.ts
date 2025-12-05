@@ -69,6 +69,7 @@ export type Database = {
       }
       queue_instances: {
         Row: {
+          audio_enabled: boolean
           average_service_time_seconds: number | null
           business_name: string
           capacity_enabled: boolean
@@ -77,16 +78,19 @@ export type Database = {
           daily_capacity: number | null
           ewt_enabled: boolean
           id: string
+          industry_type: string
           last_reset_date: string
           multi_counter_enabled: boolean
           next_token: number
           owner_id: string
           queue_code: string
+          requeue_enabled: boolean
           strict_missed_policy: boolean
           system_status: boolean
           updated_at: string
         }
         Insert: {
+          audio_enabled?: boolean
           average_service_time_seconds?: number | null
           business_name: string
           capacity_enabled?: boolean
@@ -95,16 +99,19 @@ export type Database = {
           daily_capacity?: number | null
           ewt_enabled?: boolean
           id?: string
+          industry_type?: string
           last_reset_date?: string
           multi_counter_enabled?: boolean
           next_token?: number
           owner_id: string
           queue_code: string
+          requeue_enabled?: boolean
           strict_missed_policy?: boolean
           system_status?: boolean
           updated_at?: string
         }
         Update: {
+          audio_enabled?: boolean
           average_service_time_seconds?: number | null
           business_name?: string
           capacity_enabled?: boolean
@@ -113,11 +120,13 @@ export type Database = {
           daily_capacity?: number | null
           ewt_enabled?: boolean
           id?: string
+          industry_type?: string
           last_reset_date?: string
           multi_counter_enabled?: boolean
           next_token?: number
           owner_id?: string
           queue_code?: string
+          requeue_enabled?: boolean
           strict_missed_policy?: boolean
           system_status?: boolean
           updated_at?: string

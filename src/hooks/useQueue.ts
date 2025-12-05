@@ -19,6 +19,9 @@ export interface QueueInstance {
   last_reset_date: string;
   created_at: string;
   updated_at: string;
+  industry_type: string;
+  audio_enabled: boolean;
+  requeue_enabled: boolean;
 }
 
 export const useQueue = (queueId?: string) => {
@@ -41,7 +44,7 @@ export const useQueue = (queueId?: string) => {
       console.error("Error fetching queue:", error);
       toast.error("Failed to load queue");
     } else {
-      setQueue(data);
+      setQueue(data as QueueInstance);
     }
     setLoading(false);
   }, [queueId]);
@@ -122,12 +125,46 @@ export const useQueue = (queueId?: string) => {
     toast.success(status ? "Queue is now OPEN" : "Queue is now CLOSED");
   };
 
+  const requeueToken = async (tokenNumber: number) => {
+    if (!queue) return false;
+
+    // Check if token exists and is valid
+    const { data: existingToken } = await supabase
+      .from("tokens")
+      .select("*")
+      .eq("queue_id", queueId)
+      .eq("token_number", tokenNumber)
+      .maybeSingle();
+
+    if (!existingToken) {
+      toast.error("Token not found");
+      return false;
+    }
+
+    // Reactivate the token
+    const { error } = await supabase
+      .from("tokens")
+      .update({ status: "active" })
+      .eq("queue_id", queueId)
+      .eq("token_number", tokenNumber);
+
+    if (error) {
+      console.error("Error re-queuing token:", error);
+      toast.error("Failed to re-queue token");
+      return false;
+    }
+
+    toast.success(`Token ${tokenNumber} has been re-queued`);
+    return true;
+  };
+
   return {
     queue,
     loading,
     updateQueue,
     incrementServing,
     toggleSystemStatus,
+    requeueToken,
     refetch: fetchQueue,
   };
 };
@@ -151,7 +188,7 @@ export const useQueueByCode = (queueCode?: string) => {
     if (error) {
       console.error("Error fetching queue:", error);
     }
-    setQueue(data);
+    setQueue(data as QueueInstance);
     setLoading(false);
   }, [queueCode]);
 
@@ -260,7 +297,7 @@ export const useOwnerQueues = (userId?: string) => {
       if (error) {
         console.error("Error fetching queues:", error);
       } else {
-        setQueues(data || []);
+        setQueues((data || []) as QueueInstance[]);
       }
       setLoading(false);
     };
@@ -268,7 +305,7 @@ export const useOwnerQueues = (userId?: string) => {
     fetchQueues();
   }, [userId]);
 
-  const createQueue = async (businessName: string, queueCode: string) => {
+  const createQueue = async (businessName: string, queueCode: string, industryType: string) => {
     if (!userId) return null;
 
     const { data, error } = await supabase
@@ -277,6 +314,7 @@ export const useOwnerQueues = (userId?: string) => {
         owner_id: userId,
         business_name: businessName,
         queue_code: queueCode.toUpperCase(),
+        industry_type: industryType,
       })
       .select()
       .single();
@@ -290,9 +328,9 @@ export const useOwnerQueues = (userId?: string) => {
       return null;
     }
 
-    setQueues((prev) => [data, ...prev]);
+    setQueues((prev) => [data as QueueInstance, ...prev]);
     toast.success("Queue created successfully!");
-    return data;
+    return data as QueueInstance;
   };
 
   return { queues, loading, createQueue };

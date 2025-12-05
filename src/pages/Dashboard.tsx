@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { WimiraLogo } from "@/components/WimiraLogo";
+import { IndustrySelect, getIndustryLabel } from "@/components/IndustrySelect";
 import { 
   Plus, 
   LogOut, 
-  Settings, 
-  Ticket, 
   Users,
   ChevronRight,
   Power,
@@ -24,6 +25,7 @@ const Dashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [newBusinessName, setNewBusinessName] = useState("");
   const [newQueueCode, setNewQueueCode] = useState("");
+  const [newIndustryType, setNewIndustryType] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -39,19 +41,25 @@ const Dashboard = () => {
       return;
     }
 
+    if (!newIndustryType) {
+      toast.error("Please select an industry type");
+      return;
+    }
+
     if (!/^[A-Za-z0-9-]+$/.test(newQueueCode)) {
       toast.error("Queue code can only contain letters, numbers, and hyphens");
       return;
     }
 
     setIsCreating(true);
-    const result = await createQueue(newBusinessName, newQueueCode);
+    const result = await createQueue(newBusinessName, newQueueCode, newIndustryType);
     setIsCreating(false);
 
     if (result) {
       setDialogOpen(false);
       setNewBusinessName("");
       setNewQueueCode("");
+      setNewIndustryType("");
     }
   };
 
@@ -74,17 +82,17 @@ const Dashboard = () => {
         {/* Header */}
         <header className="flex items-center justify-between mb-8 animate-fade-in">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <Ticket className="w-5 h-5 text-primary" />
-            </div>
+            <WimiraLogo size="sm" />
             <div>
-              <h1 className="text-xl font-bold text-foreground">QueueFlow</h1>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleSignOut}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </header>
 
         {/* Create Queue Button */}
@@ -101,7 +109,7 @@ const Dashboard = () => {
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label htmlFor="business-name">Business Name</Label>
+                <Label htmlFor="business-name">Business Name *</Label>
                 <Input
                   id="business-name"
                   placeholder="My Restaurant"
@@ -109,8 +117,14 @@ const Dashboard = () => {
                   onChange={(e) => setNewBusinessName(e.target.value)}
                 />
               </div>
+
+              <IndustrySelect 
+                value={newIndustryType} 
+                onChange={setNewIndustryType} 
+              />
+
               <div className="space-y-2">
-                <Label htmlFor="queue-code">Queue Code</Label>
+                <Label htmlFor="queue-code">Queue Code *</Label>
                 <Input
                   id="queue-code"
                   placeholder="MY-RESTAURANT-1"
@@ -187,7 +201,8 @@ const QueueCard = ({ queue, onClick, style }: QueueCardProps) => {
       </div>
 
       <h3 className="text-lg font-semibold text-foreground mb-1">{queue.business_name}</h3>
-      <p className="text-sm font-mono text-primary mb-4">{queue.queue_code}</p>
+      <p className="text-sm font-mono text-primary mb-1">{queue.queue_code}</p>
+      <p className="text-xs text-muted-foreground mb-4">{getIndustryLabel(queue.industry_type)}</p>
 
       <div className="flex items-center gap-6 text-sm">
         <div>
