@@ -15,17 +15,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Settings, RotateCcw } from "lucide-react";
+import { ArrowLeft, Settings, RotateCcw, FileText, RefreshCcw } from "lucide-react";
 
 const ManageQueue = () => {
   const { queueId } = useParams<{ queueId: string }>();
   const { user, loading: authLoading } = useAuth();
-  const { queue, loading: queueLoading, updateQueue, incrementServing, toggleSystemStatus, requeueToken } = useQueue(queueId);
+  const { 
+    queue, 
+    loading: queueLoading, 
+    updateQueue, 
+    incrementServing, 
+    toggleSystemStatus, 
+    requeueToken,
+    issuePaperToken,
+    resetCounters
+  } = useQueue(queueId);
   const { playAnnouncement } = useAudioAnnouncement();
   const navigate = useNavigate();
   
   const [requeueTokenNumber, setRequeueTokenNumber] = useState("");
   const [requeueDialogOpen, setRequeueDialogOpen] = useState(false);
+  const [paperTokenDialogOpen, setPaperTokenDialogOpen] = useState(false);
+  const [issuedPaperToken, setIssuedPaperToken] = useState<number | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -41,8 +53,9 @@ const ManageQueue = () => {
 
   const handleIncrementServing = async () => {
     await incrementServing();
-    if (queue?.audio_enabled) {
-      playAnnouncement();
+    if (queue?.audio_enabled && queue) {
+      // Play announcement with the NEW serving number (current + 1)
+      playAnnouncement(queue.current_serving + 1);
     }
   };
 
@@ -53,10 +66,24 @@ const ManageQueue = () => {
       return;
     }
     
-    const success = await requeueToken(tokenNum);
+    const success = await requeueToken(tokenNum, queue?.strict_missed_policy || false);
     if (success) {
       setRequeueDialogOpen(false);
       setRequeueTokenNumber("");
+    }
+  };
+
+  const handleIssuePaperToken = async () => {
+    const token = await issuePaperToken();
+    if (token) {
+      setIssuedPaperToken(token);
+    }
+  };
+
+  const handleResetCounters = async () => {
+    const success = await resetCounters();
+    if (success) {
+      setResetDialogOpen(false);
     }
   };
 
@@ -147,6 +174,37 @@ const ManageQueue = () => {
                   Estimated wait: ~{estimatedWaitMinutes} min
                 </p>
               )}
+
+              {/* Manual Counter Reset Toggle */}
+              <div className="mt-6 pt-4 border-t border-border/50">
+                <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full gap-2">
+                      <RefreshCcw className="w-4 h-4" />
+                      Manual Counter Reset
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="card-gradient border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-foreground">Reset Queue Counters</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <p className="text-sm text-muted-foreground">
+                        This will reset the "Now Serving" counter and "Next Token" to 0, allowing you to start fresh.
+                        All active tokens will be marked as expired.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1" onClick={() => setResetDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button variant="destructive" className="flex-1" onClick={handleResetCounters}>
+                          Reset Counters
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             {/* Swipe to Next */}
@@ -158,44 +216,102 @@ const ManageQueue = () => {
               />
             </div>
 
-            {/* Re-queue Button (when enabled) */}
+            {/* Manual Service Control Functions (when enabled) */}
             {queue.requeue_enabled && (
-              <Dialog open={requeueDialogOpen} onOpenChange={setRequeueDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="w-full gap-2 animate-fade-in" style={{ animationDelay: "0.25s" }}>
-                    <RotateCcw className="w-4 h-4" />
-                    Re-Queue Token
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="card-gradient border-border">
-                  <DialogHeader>
-                    <DialogTitle className="text-foreground">Re-Queue Token</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <p className="text-sm text-muted-foreground">
-                      Enter the token number to place it back into the queue. It will be served immediately after the current number.
-                    </p>
-                    <div className="space-y-2">
-                      <Label htmlFor="requeue-token">Token Number</Label>
-                      <Input
-                        id="requeue-token"
-                        type="number"
-                        min="1"
-                        placeholder="Enter token number"
-                        value={requeueTokenNumber}
-                        onChange={(e) => setRequeueTokenNumber(e.target.value)}
-                      />
+              <div className="grid grid-cols-2 gap-4 animate-fade-in" style={{ animationDelay: "0.25s" }}>
+                {/* Issue Paper Token */}
+                <Dialog open={paperTokenDialogOpen} onOpenChange={(open) => {
+                  setPaperTokenDialogOpen(open);
+                  if (!open) setIssuedPaperToken(null);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <FileText className="w-4 h-4" />
+                      Issue Paper Token
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="card-gradient border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-foreground">Issue Paper Token</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      {issuedPaperToken ? (
+                        <div className="text-center py-8">
+                          <p className="text-sm text-muted-foreground mb-2">Token Number</p>
+                          <p className="text-6xl font-mono font-bold text-primary mb-4">{issuedPaperToken}</p>
+                          <p className="text-sm text-muted-foreground">Write this number down for the customer</p>
+                          <Button
+                            variant="outline"
+                            className="mt-6"
+                            onClick={() => {
+                              setIssuedPaperToken(null);
+                              setPaperTokenDialogOpen(false);
+                            }}
+                          >
+                            Done
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            Issue a paper token for customers who cannot use digital devices. This will generate the next sequential token number.
+                          </p>
+                          <Button
+                            variant="gradient"
+                            className="w-full"
+                            onClick={handleIssuePaperToken}
+                          >
+                            Generate Paper Token
+                          </Button>
+                        </>
+                      )}
                     </div>
-                    <Button
-                      variant="gradient"
-                      className="w-full"
-                      onClick={handleRequeue}
-                    >
+                  </DialogContent>
+                </Dialog>
+
+                {/* Re-Queue Token */}
+                <Dialog open={requeueDialogOpen} onOpenChange={setRequeueDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <RotateCcw className="w-4 h-4" />
                       Re-Queue Token
                     </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="card-gradient border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-foreground">Re-Queue Token</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <p className="text-sm text-muted-foreground">
+                        Enter the token number to place it back into the queue for immediate follow-up or error correction.
+                        {queue.strict_missed_policy && (
+                          <span className="text-destructive block mt-2">
+                            Note: Missed/expired tokens cannot be re-queued. Customer must generate a new token.
+                          </span>
+                        )}
+                      </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="requeue-token">Token Number</Label>
+                        <Input
+                          id="requeue-token"
+                          type="number"
+                          min="1"
+                          placeholder="Enter token number"
+                          value={requeueTokenNumber}
+                          onChange={(e) => setRequeueTokenNumber(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="gradient"
+                        className="w-full"
+                        onClick={handleRequeue}
+                      >
+                        Re-Queue Token
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             )}
           </div>
 
@@ -263,14 +379,14 @@ const ManageQueue = () => {
 
               <StatusToggle
                 label="Audio Announcements"
-                description="Play sound when calling next token"
+                description="Play sound and voice when calling next token"
                 checked={queue.audio_enabled}
                 onCheckedChange={(checked) => updateQueue({ audio_enabled: checked })}
               />
 
               <StatusToggle
                 label="Manual Service Control"
-                description="Enable re-queue token functionality"
+                description="Enable paper tokens and re-queue functionality"
                 checked={queue.requeue_enabled}
                 onCheckedChange={(checked) => updateQueue({ requeue_enabled: checked })}
               />

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueueByCode } from "@/hooks/useQueue";
 import { useNextInLineAlert } from "@/hooks/useVibration";
+import { useTokenPersistence } from "@/hooks/useTokenPersistence";
 import { supabase } from "@/integrations/supabase/client";
 import OdometerDisplay from "@/components/OdometerDisplay";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,9 @@ const PublicQueue = () => {
   const [sessionId] = useState(() => crypto.randomUUID());
   const navigate = useNavigate();
 
+  // Token persistence
+  const { storedToken, saveToken, clearToken } = useTokenPersistence(queue?.id);
+
   // Vibration alert for next in line
   useNextInLineAlert(
     myToken,
@@ -26,9 +30,35 @@ const PublicQueue = () => {
     tokenStatus === "active"
   );
 
-  // Check for existing token in this session
+  // Load persisted token from localStorage
   useEffect(() => {
-    if (!queue) return;
+    if (!queue || myToken !== null) return;
+
+    if (storedToken) {
+      // Verify token still exists and is active
+      const verifyToken = async () => {
+        const { data } = await supabase
+          .from("tokens")
+          .select("token_number, status")
+          .eq("queue_id", queue.id)
+          .eq("token_number", storedToken)
+          .maybeSingle();
+
+        if (data) {
+          setMyToken(data.token_number);
+          setTokenStatus(data.status);
+        } else {
+          // Token no longer exists, clear storage
+          clearToken();
+        }
+      };
+      verifyToken();
+    }
+  }, [queue, storedToken, myToken, clearToken]);
+
+  // Check for existing token in this session (fallback)
+  useEffect(() => {
+    if (!queue || myToken !== null) return;
 
     const checkExistingToken = async () => {
       const { data } = await supabase
@@ -41,11 +71,13 @@ const PublicQueue = () => {
       if (data) {
         setMyToken(data.token_number);
         setTokenStatus(data.status);
+        // Also save to localStorage for persistence
+        saveToken(data.token_number);
       }
     };
 
     checkExistingToken();
-  }, [queue, sessionId]);
+  }, [queue, sessionId, myToken, saveToken]);
 
   // Subscribe to token status updates
   useEffect(() => {
@@ -65,6 +97,10 @@ const PublicQueue = () => {
           const updated = payload.new as { token_number: number; status: string };
           if (updated.token_number === myToken) {
             setTokenStatus(updated.status);
+            // Clear from storage if token is completed/missed/expired
+            if (["served", "missed", "expired"].includes(updated.status)) {
+              clearToken();
+            }
           }
         }
       )
@@ -73,11 +109,12 @@ const PublicQueue = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queue, myToken]);
+  }, [queue, myToken, clearToken]);
 
   const handleGenerateToken = async () => {
-    if (myToken) {
-      toast.error("You already have a token");
+    // One token limit per device check
+    if (myToken && tokenStatus === "active") {
+      toast.error("You already have an active token");
       return;
     }
 
@@ -86,6 +123,31 @@ const PublicQueue = () => {
     if (token) {
       setMyToken(token);
       setTokenStatus("active");
+      // Save to localStorage for persistence
+      saveToken(token);
+    }
+    setIsGenerating(false);
+  };
+
+  // Check if user can generate new token
+  const canGenerateNewToken = () => {
+    if (!myToken) return true;
+    // Can only generate new token if previous was served/missed/expired
+    return ["served", "missed", "expired"].includes(tokenStatus);
+  };
+
+  const handleGenerateNewToken = async () => {
+    // Reset state for new token
+    setMyToken(null);
+    setTokenStatus("active");
+    clearToken();
+    
+    setIsGenerating(true);
+    const token = await generateToken(sessionId + "-" + Date.now());
+    if (token) {
+      setMyToken(token);
+      setTokenStatus("active");
+      saveToken(token);
     }
     setIsGenerating(false);
   };
@@ -240,6 +302,18 @@ const PublicQueue = () => {
                   )}
                 </div>
               )}
+
+              {/* Get new token button for missed/expired/served tokens */}
+              {(isMissedOrExpired || isServed) && queue.system_status && (
+                <Button
+                  variant="gradient"
+                  className="mt-4"
+                  onClick={handleGenerateNewToken}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? "Generating..." : "Get New Token"}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -293,7 +367,7 @@ const PublicQueue = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-muted-foreground">
-            Powered by <span className="text-primary font-medium">Wimira</span>
+            Powered by <span className="text-primary font-medium cursor-pointer" onClick={() => navigate("/")}>Wimira</span>
           </p>
         </div>
       </div>

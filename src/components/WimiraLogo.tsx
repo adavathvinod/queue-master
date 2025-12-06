@@ -1,12 +1,16 @@
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface WimiraLogoProps {
   size?: "sm" | "md" | "lg" | "xl";
   showText?: boolean;
   className?: string;
+  clickable?: boolean;
 }
 
-export const WimiraLogo = ({ size = "md", showText = true, className }: WimiraLogoProps) => {
+export const WimiraLogo = ({ size = "md", showText = true, className, clickable = true }: WimiraLogoProps) => {
+  const navigate = useNavigate();
+  
   const sizeClasses = {
     sm: "w-8 h-8",
     md: "w-12 h-12",
@@ -21,8 +25,21 @@ export const WimiraLogo = ({ size = "md", showText = true, className }: WimiraLo
     xl: "text-4xl md:text-5xl",
   };
 
+  const handleClick = () => {
+    if (clickable) {
+      navigate("/");
+    }
+  };
+
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div 
+      className={cn(
+        "flex items-center gap-3", 
+        clickable && "cursor-pointer hover:opacity-80 transition-opacity",
+        className
+      )}
+      onClick={handleClick}
+    >
       {/* Logo Mark - Sequential Flow Symbol */}
       <div className={cn("relative flex items-center justify-center rounded-2xl bg-primary/20 glow-primary", sizeClasses[size])}>
         <svg

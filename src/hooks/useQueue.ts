@@ -125,10 +125,10 @@ export const useQueue = (queueId?: string) => {
     toast.success(status ? "Queue is now OPEN" : "Queue is now CLOSED");
   };
 
-  const requeueToken = async (tokenNumber: number) => {
+  const requeueToken = async (tokenNumber: number, strictMissedPolicy: boolean) => {
     if (!queue) return false;
 
-    // Check if token exists and is valid
+    // Check if token exists
     const { data: existingToken } = await supabase
       .from("tokens")
       .select("*")
@@ -138,6 +138,12 @@ export const useQueue = (queueId?: string) => {
 
     if (!existingToken) {
       toast.error("Token not found");
+      return false;
+    }
+
+    // Strict rule: Cannot requeue missed/expired tokens
+    if (strictMissedPolicy && (existingToken.status === "missed" || existingToken.status === "expired")) {
+      toast.error("Cannot re-queue missed/expired tokens. Customer must generate a new token.");
       return false;
     }
 
@@ -158,6 +164,71 @@ export const useQueue = (queueId?: string) => {
     return true;
   };
 
+  // Issue paper token for non-digital users
+  const issuePaperToken = async () => {
+    if (!queue) return null;
+
+    const tokenNumber = queue.next_token;
+
+    // Insert token with "paper" status
+    const { error: tokenError } = await supabase.from("tokens").insert({
+      queue_id: queue.id,
+      token_number: tokenNumber,
+      session_id: `paper-${Date.now()}`,
+      status: "active",
+    });
+
+    if (tokenError) {
+      console.error("Error issuing paper token:", tokenError);
+      toast.error("Failed to issue paper token");
+      return null;
+    }
+
+    // Increment next_token
+    const { error: updateError } = await supabase
+      .from("queue_instances")
+      .update({ next_token: tokenNumber + 1 })
+      .eq("id", queue.id);
+
+    if (updateError) {
+      console.error("Error updating next token:", updateError);
+    }
+
+    toast.success(`Paper token issued: ${tokenNumber}`);
+    return tokenNumber;
+  };
+
+  // Manual counter reset
+  const resetCounters = async () => {
+    if (!queue) return false;
+
+    // Reset current_serving and next_token
+    const { error } = await supabase
+      .from("queue_instances")
+      .update({ 
+        current_serving: 0, 
+        next_token: 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", queueId);
+
+    if (error) {
+      console.error("Error resetting counters:", error);
+      toast.error("Failed to reset counters");
+      return false;
+    }
+
+    // Mark all active tokens as expired
+    await supabase
+      .from("tokens")
+      .update({ status: "expired" })
+      .eq("queue_id", queueId)
+      .eq("status", "active");
+
+    toast.success("Queue counters reset to 0");
+    return true;
+  };
+
   return {
     queue,
     loading,
@@ -165,6 +236,8 @@ export const useQueue = (queueId?: string) => {
     incrementServing,
     toggleSystemStatus,
     requeueToken,
+    issuePaperToken,
+    resetCounters,
     refetch: fetchQueue,
   };
 };
@@ -281,29 +354,29 @@ export const useOwnerQueues = (userId?: string) => {
   const [queues, setQueues] = useState<QueueInstance[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchQueues = useCallback(async () => {
     if (!userId) {
       setLoading(false);
       return;
     }
 
-    const fetchQueues = async () => {
-      const { data, error } = await supabase
-        .from("queue_instances")
-        .select("*")
-        .eq("owner_id", userId)
-        .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("queue_instances")
+      .select("*")
+      .eq("owner_id", userId)
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching queues:", error);
-      } else {
-        setQueues((data || []) as QueueInstance[]);
-      }
-      setLoading(false);
-    };
-
-    fetchQueues();
+    if (error) {
+      console.error("Error fetching queues:", error);
+    } else {
+      setQueues((data || []) as QueueInstance[]);
+    }
+    setLoading(false);
   }, [userId]);
+
+  useEffect(() => {
+    fetchQueues();
+  }, [fetchQueues]);
 
   const createQueue = async (businessName: string, queueCode: string, industryType: string) => {
     if (!userId) return null;
@@ -333,5 +406,35 @@ export const useOwnerQueues = (userId?: string) => {
     return data as QueueInstance;
   };
 
-  return { queues, loading, createQueue };
+  const deleteQueue = async (queueId: string) => {
+    // Delete all related tokens first
+    await supabase
+      .from("tokens")
+      .delete()
+      .eq("queue_id", queueId);
+
+    // Delete all related counters
+    await supabase
+      .from("counters")
+      .delete()
+      .eq("queue_id", queueId);
+
+    // Delete the queue
+    const { error } = await supabase
+      .from("queue_instances")
+      .delete()
+      .eq("id", queueId);
+
+    if (error) {
+      console.error("Error deleting queue:", error);
+      toast.error("Failed to delete queue");
+      return false;
+    }
+
+    setQueues((prev) => prev.filter((q) => q.id !== queueId));
+    toast.success("Queue deleted successfully");
+    return true;
+  };
+
+  return { queues, loading, createQueue, deleteQueue, refetch: fetchQueues };
 };
