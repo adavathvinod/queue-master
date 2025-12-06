@@ -137,13 +137,15 @@ const PublicQueue = () => {
   };
 
   const handleGenerateNewToken = async () => {
-    // Reset state for new token
+    // Clear previous token state completely
+    clearToken();
     setMyToken(null);
     setTokenStatus("active");
-    clearToken();
     
     setIsGenerating(true);
-    const token = await generateToken(sessionId + "-" + Date.now());
+    // Use a fresh session ID to ensure we get a new token via unconditional +1 increment
+    const newSessionId = crypto.randomUUID();
+    const token = await generateToken(newSessionId);
     if (token) {
       setMyToken(token);
       setTokenStatus("active");
