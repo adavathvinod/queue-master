@@ -16,17 +16,20 @@ import {
   Users,
   ChevronRight,
   Power,
-  PowerOff
+  PowerOff,
+  Trash2
 } from "lucide-react";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { queues, loading: queuesLoading, createQueue } = useOwnerQueues(user?.id);
+  const { queues, loading: queuesLoading, createQueue, deleteQueue } = useOwnerQueues(user?.id);
   const [isCreating, setIsCreating] = useState(false);
   const [newBusinessName, setNewBusinessName] = useState("");
   const [newQueueCode, setNewQueueCode] = useState("");
   const [newIndustryType, setNewIndustryType] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [queueToDelete, setQueueToDelete] = useState<QueueInstance | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,6 +64,22 @@ const Dashboard = () => {
       setNewQueueCode("");
       setNewIndustryType("");
     }
+  };
+
+  const handleDeleteQueue = async () => {
+    if (!queueToDelete) return;
+    
+    const success = await deleteQueue(queueToDelete.id);
+    if (success) {
+      setDeleteDialogOpen(false);
+      setQueueToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (queue: QueueInstance, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setQueueToDelete(queue);
+    setDeleteDialogOpen(true);
   };
 
   const handleSignOut = async () => {
@@ -147,6 +166,29 @@ const Dashboard = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent className="card-gradient border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Delete Queue</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <p className="text-muted-foreground">
+                Are you sure you want to delete <span className="font-semibold text-foreground">{queueToDelete?.business_name}</span>?
+                This action cannot be undone and all associated tokens will be permanently deleted.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDeleteQueue}>
+                  Delete Queue
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Queues Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {queues.length === 0 ? (
@@ -163,6 +205,7 @@ const Dashboard = () => {
                 key={queue.id} 
                 queue={queue} 
                 onClick={() => navigate(`/manage/${queue.id}`)}
+                onDelete={(e) => openDeleteDialog(queue, e)}
                 style={{ animationDelay: `${0.1 * (index + 1)}s` }}
               />
             ))
@@ -176,14 +219,15 @@ const Dashboard = () => {
 interface QueueCardProps {
   queue: QueueInstance;
   onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
   style?: React.CSSProperties;
 }
 
-const QueueCard = ({ queue, onClick, style }: QueueCardProps) => {
+const QueueCard = ({ queue, onClick, onDelete, style }: QueueCardProps) => {
   return (
     <button
       onClick={onClick}
-      className="card-gradient rounded-2xl border border-border/50 p-6 text-left hover:border-primary/50 transition-all duration-300 hover:shadow-lg group animate-fade-in"
+      className="card-gradient rounded-2xl border border-border/50 p-6 text-left hover:border-primary/50 transition-all duration-300 hover:shadow-lg group animate-fade-in relative"
       style={style}
     >
       <div className="flex items-start justify-between mb-4">
@@ -197,7 +241,15 @@ const QueueCard = ({ queue, onClick, style }: QueueCardProps) => {
             {queue.system_status ? "OPEN" : "CLOSED"}
           </span>
         </div>
-        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onDelete}
+            className="p-1.5 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+        </div>
       </div>
 
       <h3 className="text-lg font-semibold text-foreground mb-1">{queue.business_name}</h3>
