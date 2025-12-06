@@ -15,11 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Settings, RotateCcw, FileText, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Settings, RotateCcw, FileText, RefreshCcw, LogOut } from "lucide-react";
 
 const ManageQueue = () => {
   const { queueId } = useParams<{ queueId: string }>();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { 
     queue, 
     loading: queueLoading, 
@@ -87,6 +87,15 @@ const ManageQueue = () => {
     }
   };
 
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast.error("Failed to logout");
+    } else {
+      navigate("/auth");
+    }
+  };
+
   if (authLoading || queueLoading || !queue) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -107,9 +116,12 @@ const ManageQueue = () => {
 
   return (
     <div className="min-h-screen p-4 md:p-8">
-      {/* Theme Toggle */}
-      <div className="absolute top-4 right-4">
+      {/* Theme Toggle & Logout */}
+      <div className="absolute top-4 right-4 flex items-center gap-2">
         <ThemeToggle />
+        <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
+          <LogOut className="w-4 h-4" />
+        </Button>
       </div>
 
       <div className="max-w-4xl mx-auto">
