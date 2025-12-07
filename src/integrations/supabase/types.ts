@@ -173,7 +173,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_next_token: {
+        Args: { p_queue_id: string; p_session_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
