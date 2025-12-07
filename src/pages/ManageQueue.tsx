@@ -117,10 +117,11 @@ const ManageQueue = () => {
   return (
     <div className="min-h-screen p-4 md:p-8">
       {/* Theme Toggle & Logout */}
-      <div className="absolute top-4 right-4 flex items-center gap-2">
+      <div className="absolute top-4 right-4 flex items-center gap-3">
         <ThemeToggle />
-        <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
+        <Button variant="destructive" onClick={handleLogout} className="gap-2">
           <LogOut className="w-4 h-4" />
+          Logout
         </Button>
       </div>
 
