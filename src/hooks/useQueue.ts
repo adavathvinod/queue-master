@@ -164,38 +164,30 @@ export const useQueue = (queueId?: string) => {
     return true;
   };
 
-  // Issue paper token for non-digital users
+  // Issue paper token for non-digital users - uses atomic DB function
   const issuePaperToken = async () => {
     if (!queue) return null;
 
-    const tokenNumber = queue.next_token;
-
-    // Insert token with "paper" status
-    const { error: tokenError } = await supabase.from("tokens").insert({
-      queue_id: queue.id,
-      token_number: tokenNumber,
-      session_id: `paper-${Date.now()}`,
-      status: "active",
+    // Use atomic database function to generate token
+    const { data, error } = await supabase.rpc("generate_next_token", {
+      p_queue_id: queue.id,
+      p_session_id: `paper-${Date.now()}`,
     });
 
-    if (tokenError) {
-      console.error("Error issuing paper token:", tokenError);
-      toast.error("Failed to issue paper token");
+    if (error) {
+      console.error("Error issuing paper token:", error);
+      if (error.message.includes("Queue is closed")) {
+        toast.error("Queue is currently closed");
+      } else if (error.message.includes("Daily capacity reached")) {
+        toast.error("Daily capacity reached");
+      } else {
+        toast.error("Failed to issue paper token");
+      }
       return null;
     }
 
-    // Increment next_token
-    const { error: updateError } = await supabase
-      .from("queue_instances")
-      .update({ next_token: tokenNumber + 1 })
-      .eq("id", queue.id);
-
-    if (updateError) {
-      console.error("Error updating next token:", updateError);
-    }
-
-    toast.success(`Paper token issued: ${tokenNumber}`);
-    return tokenNumber;
+    toast.success(`Paper token issued: ${data}`);
+    return data as number;
   };
 
   // Manual counter reset
@@ -299,47 +291,26 @@ export const useQueueByCode = (queueCode?: string) => {
   const generateToken = async (sessionId: string) => {
     if (!queue) return null;
 
-    // Check capacity
-    if (queue.capacity_enabled && queue.daily_capacity) {
-      const tokensToday = queue.next_token - 1;
-      if (tokensToday >= queue.daily_capacity) {
-        toast.error("Daily capacity reached. Token generation closed.");
-        return null;
-      }
-    }
-
-    if (!queue.system_status) {
-      toast.error("Queue is currently closed");
-      return null;
-    }
-
-    const tokenNumber = queue.next_token;
-
-    // Insert token
-    const { error: tokenError } = await supabase.from("tokens").insert({
-      queue_id: queue.id,
-      token_number: tokenNumber,
-      session_id: sessionId,
+    // Use atomic database function to generate token
+    const { data, error } = await supabase.rpc("generate_next_token", {
+      p_queue_id: queue.id,
+      p_session_id: sessionId,
     });
 
-    if (tokenError) {
-      console.error("Error creating token:", tokenError);
-      toast.error("Failed to generate token");
+    if (error) {
+      console.error("Error creating token:", error);
+      if (error.message.includes("Queue is closed")) {
+        toast.error("Queue is currently closed");
+      } else if (error.message.includes("Daily capacity reached")) {
+        toast.error("Daily capacity reached. Token generation closed.");
+      } else {
+        toast.error("Failed to generate token");
+      }
       return null;
     }
 
-    // Increment next_token
-    const { error: updateError } = await supabase
-      .from("queue_instances")
-      .update({ next_token: tokenNumber + 1 })
-      .eq("id", queue.id);
-
-    if (updateError) {
-      console.error("Error updating next token:", updateError);
-    }
-
-    toast.success(`Your token: ${tokenNumber}`);
-    return tokenNumber;
+    toast.success(`Your token: ${data}`);
+    return data as number;
   };
 
   return {
