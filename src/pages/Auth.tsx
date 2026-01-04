@@ -76,6 +76,10 @@ const Auth = () => {
           }
         }
       }
+    } catch (err) {
+      // Handle network errors like "Failed to fetch"
+      console.error("Auth error:", err);
+      toast.error("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
